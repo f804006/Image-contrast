@@ -12,3 +12,5 @@ def cvtColor(image):
 def preprocess_input(x):
     x /= 255.0
     return x
+
+

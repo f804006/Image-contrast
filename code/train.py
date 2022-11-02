@@ -6,20 +6,57 @@ from PIL import Image
 import numpy as np
 from keras.optimizers import SGD, Adam
 from utils import cvtColor, preprocess_input
+from utils_aug import CenterCrop, ImageNetPolicy, RandomResizedCrop, Resize
+
+input_shape = [105, 105]
+
+resize_crop = RandomResizedCrop(input_shape)
+policy = ImageNetPolicy()
+resize = Resize(input_shape[0] if input_shape[0] == input_shape[1] else input_shape)
+center_crop = CenterCrop(input_shape)
+
+
+def rand(a=0, b=1):
+    return np.random.rand() * (b - a) + a
+
+
+def data_autoAugment(image, random):
+    if not random:
+        image = resize(image)
+        image = center_crop(image)
+        return image
+
+    image = resize_crop(image)
+
+    # 随机翻转图像
+    flip = rand() < .5
+    if flip:
+        image = image.transpose(Image.FLIP_LEFT_RIGHT)
+
+    # 随机增强
+    image = policy(image)
+    return image
 
 
 def image_process(image_url):
+    # 打开图片
     image = Image.open(image_url)
+    # 都转为三通道彩色图像
     image = cvtColor(image)
 
-    image = image.resize((128, 128))
+    # 数据增强
+    image = data_autoAugment(image, True)
+
     image = preprocess_input(np.array(image).astype(np.float32))
     return image
 
 
 def load_dataset(dataset_path, val_ratio):
+    # 存放待对比的图片1, shape: n*[128*128*3]
     image_data1 = []
+    # 存放待对比的图片2, shape: n*[128*128*3]
     image_data2 = []
+    # 存放两个图片的相似性 0不相似，1相似
     label = []
     firstLine = True
     with open(dataset_path + "/annos.csv", 'r') as f:
@@ -66,7 +103,7 @@ def getTrainConf():
 
 if __name__ == "__main__":
     dataset_path = "../init_data/toUser/train"
-    input_shape = [128, 128]
+
     val_ratio = 0.2
     train_data1, train_data2, train_label, val_data1, val_data2, val_label = load_dataset(dataset_path, val_ratio)
     model_path = "model/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5"
